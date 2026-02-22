@@ -43,7 +43,7 @@ jobs:
       - name: 编译前端 UI
         run: |
           cd web
-          npm install
+          npm ci
           npm run build
           # 将编译结果同步到 Go 嵌入目录
           rm -rf ../internal/server/ui/*
@@ -52,7 +52,7 @@ jobs:
       - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23' # 对应你 go.mod 里的版本
+          go-version: '1.25.7' # 对应 go.mod 里的版本
 
       - name: 交叉编译二进制文件
         env:

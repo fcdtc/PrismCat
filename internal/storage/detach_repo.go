@@ -8,7 +8,7 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
-	"github.com/prismcat/prismcat/internal/config"
+	"github.com/paopaoandlingyia/PrismCat/internal/config"
 )
 
 // DetachingRepository detaches large bodies into a BlobStore before persisting logs.

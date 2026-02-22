@@ -22,8 +22,8 @@ import (
 	"github.com/andybalholm/brotli"
 	"github.com/google/uuid"
 
-	"github.com/prismcat/prismcat/internal/config"
-	"github.com/prismcat/prismcat/internal/storage"
+	"github.com/paopaoandlingyia/PrismCat/internal/config"
+	"github.com/paopaoandlingyia/PrismCat/internal/storage"
 )
 
 var b64Regex = regexp.MustCompile(`(data:[^\s]+?;base64,)?([A-Za-z0-9+/]{200,}[=]{0,2})`)

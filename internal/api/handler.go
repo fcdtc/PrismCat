@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prismcat/prismcat/internal/config"
-	"github.com/prismcat/prismcat/internal/storage"
+	"github.com/paopaoandlingyia/PrismCat/internal/config"
+	"github.com/paopaoandlingyia/PrismCat/internal/storage"
 )
 
 // Handler API 处理器

@@ -17,10 +17,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/prismcat/prismcat/internal/api"
-	"github.com/prismcat/prismcat/internal/config"
-	"github.com/prismcat/prismcat/internal/proxy"
-	"github.com/prismcat/prismcat/internal/storage"
+	"github.com/paopaoandlingyia/PrismCat/internal/api"
+	"github.com/paopaoandlingyia/PrismCat/internal/config"
+	"github.com/paopaoandlingyia/PrismCat/internal/proxy"
+	"github.com/paopaoandlingyia/PrismCat/internal/storage"
 )
 
 //go:embed all:ui

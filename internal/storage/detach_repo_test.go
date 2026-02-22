@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/prismcat/prismcat/internal/config"
+	"github.com/paopaoandlingyia/PrismCat/internal/config"
 )
 
 type memBlobStore struct {

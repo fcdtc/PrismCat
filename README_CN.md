@@ -2,6 +2,8 @@
 
 [English](./README.md) | [简体中文](./README_CN.md)
 
+![GitHub Release](https://img.shields.io/github/v/release/paopaoandlingyia/PrismCat) ![License](https://img.shields.io/github/license/paopaoandlingyia/PrismCat) ![Docker Image](https://img.shields.io/badge/image-ghcr.io%2Fpaopaoandlingyia%2Fprismcat-blue)
+
 **PrismCat** 是一个专为开发者设计的本地 **LLM API 透传代理与流量观测工具**。
 
 它能帮助你在本地开发大模型应用时，清晰地观测到发送给上游的每一个字节，支持完整记录 Streaming 响应，并提供类似 Postman 的请求重放（Replay）功能。
@@ -23,12 +25,31 @@
 
 ---
 
+## 🎯 适用场景
+
+- 排查 SDK / 网关在请求里注入的 **隐藏 system prompt**、参数改写等“黑盒”问题。
+- 观测 **流式响应 (SSE)** 的实时内容，并可长期留存复盘。
+- 用 **重放 (Replay)** 快速复现 bug：在 UI 里改 prompt/参数再发一遍。
+- 用 `X-PrismCat-Tag` 给流量打标签，方便多人/多项目共用一个代理时区分会话。
+
+---
+
+## 🤔 与其他方案的区别
+
+- **mitmproxy / 浏览器 Network**：很强但偏底层；Streaming + 长期日志浏览/重放会比较痛苦。
+- **Langfuse / Helicone 等**：更偏生产可观测性，通常需要接入 SDK 或依赖外部服务端。
+- **PrismCat**：本地优先、透明代理、单文件部署，专门针对 LLM API 流量做了优化。
+
+---
+
 ## 🛠️ 快速开始
 
 ### 1. 运行二进制文件 (推荐)
 前往 [Releases](https://github.com/paopaoandlingyia/PrismCat/releases) 下载对应系统的压缩包。
 - **Windows**: 双击 `prismcat.exe` 启动。程序会自动隐藏至系统托盘，右键即可打开控制面板。
 - **Linux/macOS**: 执行 `./prismcat`。
+
+浏览器打开 `http://localhost:8080` 进入控制面板。
 
 ### 2. Docker 部署
 ```yaml
@@ -67,6 +88,23 @@ client = OpenAI(
     base_url="http://openai.localhost:8080/v1", # 指向 PrismCat 路由
     api_key="sk-..."
 )
+```
+
+---
+
+## ⚙️ 配置上游 (Upstreams)
+
+配置文件默认位于 `data/config.yaml`（首次启动自动创建）。你需要配置 `upstreams` 来声明子域名对应的上游地址，例如：
+
+```yaml
+upstreams:
+  openai:
+    target: "https://api.openai.com"
+    timeout: 120
+
+  gemini:
+    target: "https://generativelanguage.googleapis.com"
+    timeout: 120
 ```
 
 ---
@@ -116,7 +154,19 @@ logging:
 
 storage:
   retention_days: 7              # 日志保留时长 (天)
+
+upstreams:
+  openai:
+    target: "https://api.openai.com"
+    timeout: 120
 ```
+
+---
+
+## 🧩 常见问题
+
+- 如果 `openai.localhost` 在你的系统上无法解析，请手动写 hosts 或使用自己的泛域名（见上面的 Nginx 部署建议）。
+- 如果反向代理后 Streaming 变慢/像卡住，务必检查 Nginx 里是否设置了 `proxy_buffering off` 和 `proxy_http_version 1.1`。
 
 ---
 

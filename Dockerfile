@@ -2,12 +2,12 @@
 FROM node:20-slim AS frontend-builder
 WORKDIR /web
 COPY web/package*.json ./
-RUN npm install
+RUN npm ci
 COPY web/ ./
 RUN npm run build
 
 # --- 第二阶段：构建后端 ---
-FROM golang:latest AS backend-builder
+FROM golang:1.25.7 AS backend-builder
 WORKDIR /app
 COPY go.mod go.sum ./
 ENV GOTOOLCHAIN=auto

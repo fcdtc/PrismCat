@@ -6,8 +6,8 @@ import (
 	"syscall"
 
 	"github.com/getlantern/systray"
-	"github.com/prismcat/prismcat/internal/config"
-	"github.com/prismcat/prismcat/internal/server"
+	"github.com/paopaoandlingyia/PrismCat/internal/config"
+	"github.com/paopaoandlingyia/PrismCat/internal/server"
 	"github.com/skratchdot/open-golang/open"
 )
 
