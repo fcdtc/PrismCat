@@ -19,6 +19,11 @@ server:
   proxy_domains:
     - "localhost"
 
+  # 可选：开启路径路由兼容模式
+  # 开启后也可通过 /_proxy/openai/v1 这样的地址转发，无需子域名解析
+  enable_path_routing: false
+  path_routing_prefix: "/_proxy"
+
   # 优雅关闭超时（秒）
   shutdown_timeout_seconds: 10
 

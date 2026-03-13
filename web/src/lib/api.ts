@@ -123,6 +123,8 @@ export interface AppConfig {
     version: string
     server: {
         proxy_domains: string[]
+        enable_path_routing: boolean
+        path_routing_prefix: string
     }
     logging: {
         max_request_body: number
@@ -140,6 +142,10 @@ export interface AppConfig {
 }
 
 export interface ConfigUpdate {
+    server?: {
+        enable_path_routing?: boolean
+        path_routing_prefix?: string
+    }
     logging?: {
         max_request_body?: number
         max_response_body?: number
