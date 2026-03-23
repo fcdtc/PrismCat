@@ -32,6 +32,9 @@ interface ToolCallAccumulator {
 interface OpenAIChoiceAccumulator {
     role: string
     content: string
+    reasoning: string
+    reasoningDetails: unknown[]
+    images: unknown[]
     toolCalls: Array<ToolCallAccumulator | undefined>
     finishReason: string | null
 }
@@ -288,6 +291,9 @@ function mergeOpenAIChatChunks(chunks: Record<string, unknown>[]): Record<string
                 choiceMap.set(index, {
                     role: '',
                     content: '',
+                    reasoning: '',
+                    reasoningDetails: [],
+                    images: [],
                     toolCalls: [],
                     finishReason: null,
                 })
@@ -302,6 +308,10 @@ function mergeOpenAIChatChunks(chunks: Record<string, unknown>[]): Record<string
                 if (role) acc.role = role
 
                 acc.content += readTextDelta(delta.content)
+                const reasoning = asString(delta.reasoning)
+                if (reasoning) acc.reasoning += reasoning
+                mergeArrayValues(acc.reasoningDetails, getArray(delta, 'reasoning_details'))
+                mergeArrayValues(acc.images, getArray(delta, 'images'))
                 mergeToolCalls(acc, getArray(delta, 'tool_calls'))
             }
 
@@ -316,6 +326,15 @@ function mergeOpenAIChatChunks(chunks: Record<string, unknown>[]): Record<string
             const message: Record<string, unknown> = {
                 role: acc.role || 'assistant',
                 content: acc.content,
+            }
+            if (acc.reasoning) {
+                message.reasoning = acc.reasoning
+            }
+            if (acc.reasoningDetails.length > 0) {
+                message.reasoning_details = acc.reasoningDetails
+            }
+            if (acc.images.length > 0) {
+                message.images = acc.images
             }
             const toolCalls = acc.toolCalls.filter(isPresent).map((toolCall) => ({
                 id: toolCall.id,
@@ -335,15 +354,16 @@ function mergeOpenAIChatChunks(chunks: Record<string, unknown>[]): Record<string
             }
         })
 
-    const result: Record<string, unknown> = {}
-    if (base.id !== undefined) result.id = base.id
+    const result: Record<string, unknown> = { ...base }
     if (base.object !== undefined) result.object = 'chat.completion'
-    if (base.created !== undefined) result.created = base.created
-    if (base.model !== undefined) result.model = base.model
     result.choices = mergedChoices
-    if (base.usage !== undefined) result.usage = base.usage
 
     return result
+}
+
+function mergeArrayValues(target: unknown[], values: unknown[] | undefined): void {
+    if (!values || values.length === 0) return
+    target.push(...values)
 }
 
 function mergeToolCalls(acc: OpenAIChoiceAccumulator, toolCalls: unknown[] | undefined): void {
