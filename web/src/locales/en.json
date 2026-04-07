@@ -91,6 +91,10 @@
         "stream_merge_format": "Format: {{format}}",
         "stream_merge_protocol": "Protocol: {{protocol}}",
         "stream_merge_unavailable": "Unable to derive a merged view right now. Switch to Raw to inspect the original content.",
+        "layout_mode": "Layout",
+        "layout_standard": "Standard",
+        "layout_wide": "Wide",
+        "layout_full": "Full",
         "detached_tag": "DETACHED",
         "truncated_tag": "TRUNCATED"
     },

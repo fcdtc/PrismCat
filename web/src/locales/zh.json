@@ -93,6 +93,10 @@
         "stream_merge_format": "格式: {{format}}",
         "stream_merge_protocol": "协议: {{protocol}}",
         "stream_merge_unavailable": "当前无法生成合并视图，请切换到 Raw 查看原始内容。",
+        "layout_mode": "布局",
+        "layout_standard": "标准",
+        "layout_wide": "宽版",
+        "layout_full": "全屏",
         "detached_tag": "已分离",
         "truncated_tag": "已截断"
     },

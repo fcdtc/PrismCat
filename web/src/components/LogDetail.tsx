@@ -25,6 +25,9 @@ interface LogDetailProps {
 
 type BodyViewMode = 'pretty' | 'raw'
 type ResponseViewMode = BodyViewMode | 'merged'
+type PanelWidthMode = 'standard' | 'wide' | 'full'
+
+const logDetailWidthStorageKey = 'prismcat.logDetail.width'
 
 const defaultExpandedSections = {
     url: true,
@@ -32,6 +35,17 @@ const defaultExpandedSections = {
     requestBody: false,
     responseHeaders: false,
     responseBody: false,
+}
+
+function getInitialPanelWidthMode(): PanelWidthMode {
+    if (typeof window === 'undefined') return 'standard'
+
+    const stored = window.localStorage.getItem(logDetailWidthStorageKey)
+    if (stored === 'wide' || stored === 'full' || stored === 'standard') {
+        return stored
+    }
+
+    return 'standard'
 }
 
 export function LogDetail({ log, loading, onClose }: LogDetailProps) {
@@ -48,6 +62,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
     const [expandedSections, setExpandedSections] = useState(defaultExpandedSections)
     const [requestViewMode, setRequestViewMode] = useState<BodyViewMode>('pretty')
     const [responseViewMode, setResponseViewMode] = useState<ResponseViewMode>('pretty')
+    const [panelWidthMode, setPanelWidthMode] = useState<PanelWidthMode>(() => getInitialPanelWidthMode())
 
     useEffect(() => {
         setFullRequestBody(null)
@@ -58,6 +73,11 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
         setRequestViewMode('pretty')
         setResponseViewMode(log?.streaming ? 'raw' : 'pretty')
     }, [log?.id])
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        window.localStorage.setItem(logDetailWidthStorageKey, panelWidthMode)
+    }, [panelWidthMode])
 
     const effectiveRequestBody = fullRequestBody ?? log?.request_body ?? ''
     const effectiveResponseBody = fullResponseBody ?? log?.response_body ?? ''
@@ -115,6 +135,19 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
     }
 
     if (!log) return null
+
+    const panelWidthOptions: Array<{ value: PanelWidthMode; label: string }> = [
+        { value: 'standard', label: t('log_detail.layout_standard', 'Standard') },
+        { value: 'wide', label: t('log_detail.layout_wide', 'Wide') },
+        { value: 'full', label: t('log_detail.layout_full', 'Full') },
+    ]
+
+    const sheetWidthClassName = cn(
+        "w-full p-0 flex flex-col shadow-xl bg-background/95 supports-[backdrop-filter]:bg-background/92",
+        panelWidthMode === 'standard' && "border-l border-border/40 sm:rounded-l-2xl sm:max-w-4xl",
+        panelWidthMode === 'wide' && "border-l border-border/40 sm:rounded-l-2xl sm:max-w-6xl",
+        panelWidthMode === 'full' && "border-0 sm:rounded-none sm:max-w-none"
+    )
 
     const CopyButton = ({ text, field }: { text: string; field: string }) => (
         <Button
@@ -207,10 +240,10 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
 
     return (
         <Sheet open={!!log} onOpenChange={(open) => !open && onClose()}>
-            <SheetContent className="sm:max-w-2xl w-full p-0 flex flex-col border-l border-border/40 sm:rounded-l-2xl shadow-2xl backdrop-blur-xl bg-white dark:bg-card/95">
+            <SheetContent className={sheetWidthClassName}>
                 {/* 头部固定区域 */}
                 <SheetHeader className="px-6 py-5 border-b border-border/40 bg-muted/20">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                         <div
                             className={cn(
                                 "w-14 py-0.5 rounded-[3px] text-[10px] text-center uppercase font-bold border",
@@ -244,43 +277,55 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                             </div>
                         )}
                         {!loading && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="ml-auto mr-10 h-7 px-2.5 text-[11px] font-semibold gap-1.5 border-primary/20 bg-primary/5 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all shadow-sm"
-                                onClick={async () => {
-                                    const navigateToPlayground = (body: string) => {
-                                        onClose()
-                                        navigate('/playground', {
-                                            state: {
-                                                replay: {
-                                                    upstream: log.upstream,
-                                                    method: log.method,
-                                                    path: log.path + (log.query ? '?' + log.query : ''),
-                                                    headers: log.request_headers,
-                                                    body,
+                            <div className="ml-auto mr-10 flex flex-wrap items-center justify-end gap-2">
+                                <div className="hidden items-center gap-2 sm:flex">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+                                        {t('log_detail.layout_mode', 'Layout')}
+                                    </span>
+                                    <ViewToggle
+                                        value={panelWidthMode}
+                                        options={panelWidthOptions}
+                                        onChange={(value) => setPanelWidthMode(value as PanelWidthMode)}
+                                    />
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2.5 text-[11px] font-semibold gap-1.5 border-primary/20 bg-primary/5 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all shadow-sm"
+                                    onClick={async () => {
+                                        const navigateToPlayground = (body: string) => {
+                                            onClose()
+                                            navigate('/playground', {
+                                                state: {
+                                                    replay: {
+                                                        upstream: log.upstream,
+                                                        method: log.method,
+                                                        path: log.path + (log.query ? '?' + log.query : ''),
+                                                        headers: log.request_headers,
+                                                        body,
+                                                    },
                                                 },
-                                            },
-                                        })
-                                    }
+                                            })
+                                        }
 
-                                    // If blob ref exists and not yet loaded, fetch full body first
-                                    if (log.request_body_ref && !fullRequestBody) {
-                                        try {
-                                            const full = await fetchBlob(log.request_body_ref)
-                                            navigateToPlayground(full)
-                                        } catch {
-                                            // Fallback to preview if blob fetch fails
+                                        // If blob ref exists and not yet loaded, fetch full body first
+                                        if (log.request_body_ref && !fullRequestBody) {
+                                            try {
+                                                const full = await fetchBlob(log.request_body_ref)
+                                                navigateToPlayground(full)
+                                            } catch {
+                                                // Fallback to preview if blob fetch fails
+                                                navigateToPlayground(effectiveRequestBody)
+                                            }
+                                        } else {
                                             navigateToPlayground(effectiveRequestBody)
                                         }
-                                    } else {
-                                        navigateToPlayground(effectiveRequestBody)
-                                    }
-                                }}
-                            >
-                                <RotateCcw className="h-3 w-3" />
-                                {t('playground.replay')}
-                            </Button>
+                                    }}
+                                >
+                                    <RotateCcw className="h-3 w-3" />
+                                    {t('playground.replay')}
+                                </Button>
+                            </div>
                         )}
                     </div>
                 </SheetHeader>
