@@ -26,6 +26,8 @@ const LARGE_TEXT_THRESHOLD = 50_000;
 const LARGE_TEXT_PREVIEW_LENGTH = 4_000;
 const ROOT_AUTO_EXPAND_LIMIT = 12;
 const CHILD_AUTO_EXPAND_LIMIT = 6;
+const ARRAY_SHAPE_SAMPLE_SIZE = 5;
+const ARRAY_SHAPE_FORCE_EXPAND_LIMIT = 6;
 
 /**
  * Detect whether a string is base64-encoded binary data.
@@ -184,21 +186,49 @@ function getEntryCount(data: any): number {
     return Array.isArray(data) ? data.length : Object.keys(data).length;
 }
 
+function getShallowValueKind(value: any): string {
+    if (value === null) return 'null';
+    if (Array.isArray(value)) return 'array';
+    return typeof value === 'object' ? 'object' : typeof value;
+}
+
+function getShallowShapeSignature(value: any): string {
+    if (value === null) return 'null';
+
+    if (Array.isArray(value)) {
+        const previewKinds = value.slice(0, 3).map(getShallowValueKind);
+        return `array:${previewKinds.join('|')}:${value.length > 3 ? 'more' : 'full'}`;
+    }
+
+    if (typeof value === 'object') {
+        const keys = Object.keys(value).sort();
+        const limitedKeys = keys.slice(0, 20);
+        const fields = limitedKeys.map((key) => `${key}:${getShallowValueKind(value[key])}`);
+        const suffix = keys.length > limitedKeys.length ? `|+${keys.length - limitedKeys.length}` : '';
+        return `object:${fields.join('|')}${suffix}`;
+    }
+
+    return typeof value;
+}
+
 function shouldAutoExpandNode({
     data,
     depth,
     isRoot,
     initialExpanded,
+    forceExpanded = false,
 }: {
     data: any;
     depth: number;
     isRoot: boolean;
     initialExpanded: boolean;
+    forceExpanded?: boolean;
 }): boolean {
     if (!initialExpanded) return false;
 
     const entryCount = getEntryCount(data);
     if (isRoot) return entryCount <= ROOT_AUTO_EXPAND_LIMIT;
+    if (forceExpanded) return entryCount <= ARRAY_SHAPE_FORCE_EXPAND_LIMIT;
 
     return depth < 1 && entryCount <= CHILD_AUTO_EXPAND_LIMIT;
 }
@@ -208,18 +238,19 @@ function indent(depth: number): string {
     return '\u00A0\u00A0'.repeat(depth); // Non-breaking spaces × 2 per level
 }
 
-function CollapsibleNode({ data, label, isRoot = false, isArrayItem = false, initialExpanded = true, suffix = null, depth = 0 }: {
+function CollapsibleNode({ data, label, isRoot = false, isArrayItem = false, initialExpanded = true, forceExpanded = false, suffix = null, depth = 0 }: {
     data: any;
     label: string;
     isRoot?: boolean;
     isArrayItem?: boolean;
     initialExpanded?: boolean;
+    forceExpanded?: boolean;
     suffix?: ReactNode;
     depth?: number;
 }) {
     const { t } = useTranslation();
     const [expanded, setExpanded] = useState(() =>
-        shouldAutoExpandNode({ data, depth, isRoot, initialExpanded })
+        shouldAutoExpandNode({ data, depth, isRoot, initialExpanded, forceExpanded })
     );
     const isArray = Array.isArray(data);
     const entries = Object.entries(data);
@@ -227,10 +258,40 @@ function CollapsibleNode({ data, label, isRoot = false, isArrayItem = false, ini
     const [open, close] = isArray ? ['[', ']'] : ['{', '}'];
     const showLabel = !isRoot && !isArrayItem;
     const pad = indent(depth);
+    const sampledArrayShapes = useMemo(() => {
+        if (!isArray) return null;
+
+        const sampleSize = Math.min(data.length, ARRAY_SHAPE_SAMPLE_SIZE);
+        const shapes = new Set<string>();
+
+        for (let i = 0; i < sampleSize; i++) {
+            const item = data[i];
+            if (item === null || typeof item !== 'object') continue;
+            shapes.add(getShallowShapeSignature(item));
+        }
+
+        return { sampleSize, shapes };
+    }, [data, isArray]);
 
     useEffect(() => {
-        setExpanded(shouldAutoExpandNode({ data, depth, isRoot, initialExpanded }));
-    }, [data, depth, isRoot, initialExpanded]);
+        setExpanded(shouldAutoExpandNode({ data, depth, isRoot, initialExpanded, forceExpanded }));
+    }, [data, depth, isRoot, initialExpanded, forceExpanded]);
+
+    const shouldForceExpandArrayChild = (idx: number, value: any) => {
+        if (!isArray || !sampledArrayShapes || value === null || typeof value !== 'object') {
+            return false;
+        }
+
+        if (idx < sampledArrayShapes.sampleSize) {
+            return true;
+        }
+
+        if (sampledArrayShapes.shapes.size === 0) {
+            return false;
+        }
+
+        return !sampledArrayShapes.shapes.has(getShallowShapeSignature(value));
+    };
 
     if (isEmpty) {
         return (
@@ -266,13 +327,15 @@ function CollapsibleNode({ data, label, isRoot = false, isArrayItem = false, ini
             {expanded && entries.map(([key, value], idx) => {
                 const comma = idx < entries.length - 1 ? <span className="text-muted-foreground/40">,</span> : null;
                 if (typeof value === 'object' && value !== null) {
+                    const forceExpandChild = shouldForceExpandArrayChild(idx, value);
                     return (
                         <CollapsibleNode
                             key={key}
                             data={value}
                             label={key}
                             isArrayItem={isArray}
-                            initialExpanded={depth === 0 && idx < 3}
+                            initialExpanded={forceExpandChild || (depth === 0 && idx < 3)}
+                            forceExpanded={forceExpandChild}
                             suffix={comma}
                             depth={depth + 1}
                         />
