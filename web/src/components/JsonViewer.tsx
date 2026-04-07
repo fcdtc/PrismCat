@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy, Eye, Image as ImageIcon, FileCode } from 'lucide-react';
@@ -22,6 +22,10 @@ interface Base64Detection {
 }
 
 const NO_B64: Base64Detection = { isBase64: false, fileType: null, isImage: false, label: '' };
+const LARGE_TEXT_THRESHOLD = 50_000;
+const LARGE_TEXT_PREVIEW_LENGTH = 4_000;
+const ROOT_AUTO_EXPAND_LIMIT = 12;
+const CHILD_AUTO_EXPAND_LIMIT = 6;
 
 /**
  * Detect whether a string is base64-encoded binary data.
@@ -80,9 +84,17 @@ interface JsonViewerProps {
 export function JsonViewer({ data, initialExpanded = true }: JsonViewerProps) {
     if (typeof data === 'string') return <SmartText text={data} />;
     if (typeof data !== 'object' || data === null) return <ValueNode value={data} />;
+
+    const rootInitialExpanded = shouldAutoExpandNode({
+        data,
+        depth: 0,
+        isRoot: true,
+        initialExpanded,
+    });
+
     return (
         <div className="font-mono text-[11px] leading-relaxed select-text">
-            <CollapsibleNode data={data} label="" isRoot initialExpanded={initialExpanded} depth={0} />
+            <CollapsibleNode data={data} label="" isRoot initialExpanded={rootInitialExpanded} depth={0} />
         </div>
     );
 }
@@ -90,9 +102,10 @@ export function JsonViewer({ data, initialExpanded = true }: JsonViewerProps) {
 // ─── SmartText: raw text with base64 detection ───────────────────────
 
 export function SmartText({ text }: { text: string }) {
+    const isLargeText = text.length > LARGE_TEXT_THRESHOLD;
     type Seg = { type: 'text'; content: string } | { type: 'b64'; content: string; detection: Base64Detection; prefix?: string };
     const segments = useMemo(() => {
-        if (!text || text.length < 200) return null;
+        if (isLargeText || !text || text.length < 200) return null;
         const parts: Seg[] = [];
         let lastIndex = 0, found = false;
         const regex = /(data:[^\s]+?;base64,)?([A-Za-z0-9+/]{200,}[=]{0,2})/g;
@@ -111,7 +124,11 @@ export function SmartText({ text }: { text: string }) {
         if (!found) return null;
         if (lastIndex < text.length) parts.push({ type: 'text', content: text.substring(lastIndex) });
         return parts;
-    }, [text]);
+    }, [isLargeText, text]);
+
+    if (isLargeText) {
+        return <LargeTextPreview text={text} />;
+    }
 
     if (!segments) return <pre className="whitespace-pre-wrap break-all text-[11px] font-mono">{text}</pre>;
     return (
@@ -125,7 +142,66 @@ export function SmartText({ text }: { text: string }) {
     );
 }
 
+function LargeTextPreview({ text }: { text: string }) {
+    const { t } = useTranslation();
+    const [expanded, setExpanded] = useState(false);
+    const preview = useMemo(() => text.slice(0, LARGE_TEXT_PREVIEW_LENGTH), [text]);
+
+    const copyToClipboard = () => {
+        void navigator.clipboard.writeText(text);
+    };
+
+    return (
+        <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+                <span>{t('json_viewer.large_text', 'Large Text')}</span>
+                <span>{formatSize(text.length)}</span>
+                <button
+                    type="button"
+                    onClick={copyToClipboard}
+                    className="text-muted-foreground transition-colors hover:text-primary"
+                >
+                    {t('json_viewer.copy')}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setExpanded((value) => !value)}
+                    className="text-muted-foreground transition-colors hover:text-primary"
+                >
+                    {expanded ? t('json_viewer.collapse') : t('json_viewer.expand')}
+                </button>
+            </div>
+            <pre className="whitespace-pre-wrap break-all rounded-lg border border-border/40 bg-muted/20 p-3 text-[11px] font-mono">
+                {expanded || text.length <= preview.length ? text : `${preview}\n...`}
+            </pre>
+        </div>
+    );
+}
+
 // ─── CollapsibleNode: renders objects and arrays as a tree ────────────
+
+function getEntryCount(data: any): number {
+    return Array.isArray(data) ? data.length : Object.keys(data).length;
+}
+
+function shouldAutoExpandNode({
+    data,
+    depth,
+    isRoot,
+    initialExpanded,
+}: {
+    data: any;
+    depth: number;
+    isRoot: boolean;
+    initialExpanded: boolean;
+}): boolean {
+    if (!initialExpanded) return false;
+
+    const entryCount = getEntryCount(data);
+    if (isRoot) return entryCount <= ROOT_AUTO_EXPAND_LIMIT;
+
+    return depth < 1 && entryCount <= CHILD_AUTO_EXPAND_LIMIT;
+}
 
 /** Produce a CSS indent string for the given depth (2 spaces per level). */
 function indent(depth: number): string {
@@ -142,13 +218,19 @@ function CollapsibleNode({ data, label, isRoot = false, isArrayItem = false, ini
     depth?: number;
 }) {
     const { t } = useTranslation();
-    const [expanded, setExpanded] = useState(initialExpanded);
+    const [expanded, setExpanded] = useState(() =>
+        shouldAutoExpandNode({ data, depth, isRoot, initialExpanded })
+    );
     const isArray = Array.isArray(data);
     const entries = Object.entries(data);
     const isEmpty = entries.length === 0;
     const [open, close] = isArray ? ['[', ']'] : ['{', '}'];
     const showLabel = !isRoot && !isArrayItem;
     const pad = indent(depth);
+
+    useEffect(() => {
+        setExpanded(shouldAutoExpandNode({ data, depth, isRoot, initialExpanded }));
+    }, [data, depth, isRoot, initialExpanded]);
 
     if (isEmpty) {
         return (
@@ -184,7 +266,17 @@ function CollapsibleNode({ data, label, isRoot = false, isArrayItem = false, ini
             {expanded && entries.map(([key, value], idx) => {
                 const comma = idx < entries.length - 1 ? <span className="text-muted-foreground/40">,</span> : null;
                 if (typeof value === 'object' && value !== null) {
-                    return <CollapsibleNode key={key} data={value} label={key} isArrayItem={isArray} initialExpanded={idx < 10} suffix={comma} depth={depth + 1} />;
+                    return (
+                        <CollapsibleNode
+                            key={key}
+                            data={value}
+                            label={key}
+                            isArrayItem={isArray}
+                            initialExpanded={depth === 0 && idx < 3}
+                            suffix={comma}
+                            depth={depth + 1}
+                        />
+                    );
                 }
                 return (
                     <div key={key} className="flex items-start">
