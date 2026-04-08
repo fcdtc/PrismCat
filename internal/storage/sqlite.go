@@ -88,7 +88,6 @@ func (r *SQLiteRepository) migrate() error {
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_logs_created_at ON request_logs(created_at DESC);
-	CREATE INDEX IF NOT EXISTS idx_logs_created_at_unix_ms ON request_logs(created_at_unix_ms DESC);
 	CREATE INDEX IF NOT EXISTS idx_logs_upstream ON request_logs(upstream);
 	CREATE INDEX IF NOT EXISTS idx_logs_status_code ON request_logs(status_code);
 	CREATE INDEX IF NOT EXISTS idx_logs_method ON request_logs(method);

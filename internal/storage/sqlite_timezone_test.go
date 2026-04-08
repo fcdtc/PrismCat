@@ -1,10 +1,13 @@
 package storage
 
 import (
+	"database/sql"
 	"path/filepath"
 	"sort"
 	"testing"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestSQLiteRepositoryListLogsUsesInstantForTimezoneConsistentFiltering(t *testing.T) {
@@ -118,6 +121,81 @@ func TestSQLiteRepositoryMigrationBackfillsCreatedAtUnixMS(t *testing.T) {
 	}
 	if total != 1 || len(logs) != 1 || logs[0].ID != "legacy" {
 		t.Fatalf("unexpected query result after migration: total=%d len=%d ids=%v", total, len(logs), extractLogIDs(logs))
+	}
+}
+
+func TestSQLiteRepositoryMigratesLegacyTableWithoutCreatedAtUnixMS(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "legacy.db")
+
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy db: %v", err)
+	}
+
+	legacySchema := `
+	CREATE TABLE request_logs (
+		id TEXT PRIMARY KEY,
+		created_at DATETIME NOT NULL,
+		upstream TEXT NOT NULL,
+		target_url TEXT NOT NULL,
+		method TEXT NOT NULL,
+		path TEXT NOT NULL,
+		query TEXT,
+		request_headers TEXT,
+		request_body TEXT,
+		request_body_size INTEGER DEFAULT 0,
+		status_code INTEGER DEFAULT 0,
+		response_headers TEXT,
+		response_body TEXT,
+		response_body_size INTEGER DEFAULT 0,
+		streaming INTEGER DEFAULT 0,
+		latency_ms INTEGER DEFAULT 0,
+		error TEXT,
+		truncated INTEGER DEFAULT 0
+	);
+	CREATE INDEX IF NOT EXISTS idx_logs_created_at ON request_logs(created_at DESC);
+	`
+	if _, err := legacyDB.Exec(legacySchema); err != nil {
+		_ = legacyDB.Close()
+		t.Fatalf("create legacy schema: %v", err)
+	}
+	if _, err := legacyDB.Exec(`
+		INSERT INTO request_logs (
+			id, created_at, upstream, target_url, method, path, query, request_headers, request_body,
+			request_body_size, status_code, response_headers, response_body, response_body_size, streaming,
+			latency_ms, error, truncated
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		"legacy-1", "2026-04-08 22:10:10 +0800 CST", "openai", "https://api.openai.com/v1/responses",
+		"POST", "/v1/responses", "", "{}", "", 0, 200, "{}", "", 0, 0, 12, "", 0,
+	); err != nil {
+		_ = legacyDB.Close()
+		t.Fatalf("insert legacy row: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy db: %v", err)
+	}
+
+	repo, err := NewSQLiteRepository(dbPath)
+	if err != nil {
+		t.Fatalf("migrate legacy db: %v", err)
+	}
+	defer repo.Close()
+
+	var unixMS int64
+	if err := repo.db.QueryRow("SELECT created_at_unix_ms FROM request_logs WHERE id = ?", "legacy-1").Scan(&unixMS); err != nil {
+		t.Fatalf("query created_at_unix_ms after migration: %v", err)
+	}
+	if unixMS <= 0 {
+		t.Fatalf("created_at_unix_ms should be backfilled, got %d", unixMS)
+	}
+
+	var idxCount int
+	if err := repo.db.QueryRow("SELECT COUNT(*) FROM pragma_index_list('request_logs') WHERE name = 'idx_logs_created_at_unix_ms'").Scan(&idxCount); err != nil {
+		t.Fatalf("query created_at_unix_ms index: %v", err)
+	}
+	if idxCount != 1 {
+		t.Fatalf("idx_logs_created_at_unix_ms missing after migration")
 	}
 }
 
