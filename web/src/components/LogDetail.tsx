@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 
 interface LogDetailProps {
     log: RequestLog | null
@@ -143,11 +142,15 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
     ]
 
     const sheetWidthClassName = cn(
-        "w-full p-0 flex flex-col shadow-xl bg-background/95 supports-[backdrop-filter]:bg-background/92",
-        panelWidthMode === 'standard' && "border-l border-border/40 sm:rounded-l-2xl sm:max-w-4xl",
-        panelWidthMode === 'wide' && "border-l border-border/40 sm:rounded-l-2xl sm:max-w-6xl",
+        "w-full p-0 flex flex-col bg-background shadow-2xl",
+        panelWidthMode === 'standard' && "border-l border-border/60 sm:rounded-l-2xl sm:max-w-4xl",
+        panelWidthMode === 'wide' && "border-l border-border/60 sm:rounded-l-2xl sm:max-w-6xl",
         panelWidthMode === 'full' && "border-0 sm:rounded-none sm:max-w-none"
     )
+    const sectionCardClassName = "rounded-2xl border border-border/60 bg-card p-5 shadow-sm"
+    const contentCardClassName = "rounded-xl border border-border/60 bg-background p-4 shadow-xs"
+    const codeCardClassName = "rounded-xl border border-border/60 bg-background shadow-xs"
+    const emptyStateClassName = "rounded-xl border border-dashed border-border/50 bg-muted/50 px-4 py-6 text-center"
 
     const CopyButton = ({ text, field }: { text: string; field: string }) => (
         <Button
@@ -183,7 +186,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
         options: Array<{ value: string; label: string }>
         onChange: (value: string) => void
     }) => (
-        <div className="flex items-center gap-1 rounded-md border border-border/40 bg-background/70 p-1">
+        <div className="flex items-center gap-1 rounded-lg border border-border/60 bg-muted p-1">
             {options.map((option) => (
                 <Button
                     key={option.value}
@@ -192,8 +195,10 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                     size="sm"
                     onClick={() => onChange(option.value)}
                     className={cn(
-                        "h-6 px-2 text-[10px] font-bold uppercase tracking-wider",
-                        value === option.value && "shadow-none"
+                        "h-6 rounded-md px-2 text-[10px] font-bold uppercase tracking-wider transition-all",
+                        value === option.value
+                            ? "border border-border/70 bg-background text-foreground shadow-sm hover:bg-background"
+                            : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
                     )}
                 >
                     {option.label}
@@ -217,11 +222,13 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
             <button
                 type="button"
                 onClick={() => toggleSection(section)}
-                className="flex min-w-0 flex-1 items-center gap-2 text-left group transition-colors"
+                className="group -mx-1 flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-0.5 text-left transition-colors"
             >
                 <div className={cn(
-                    "p-1.5 rounded-md transition-colors",
-                    expandedSections[section] ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground group-hover:bg-muted/80"
+                    "rounded-md p-1.5 transition-colors",
+                    expandedSections[section]
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                        : "bg-muted text-muted-foreground group-hover:bg-secondary"
                 )}>
                     <Icon className="h-3.5 w-3.5" />
                 </div>
@@ -242,7 +249,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
         <Sheet open={!!log} onOpenChange={(open) => !open && onClose()}>
             <SheetContent className={sheetWidthClassName}>
                 {/* 头部固定区域 */}
-                <SheetHeader className="px-6 py-5 border-b border-border/40 bg-muted/20">
+                <SheetHeader className="border-b border-border/60 bg-card px-6 py-5">
                     <div className="flex flex-wrap items-center gap-3">
                         <div
                             className={cn(
@@ -259,14 +266,14 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                             {log.status_code || '---'}
                         </SheetTitle>
                         {log.streaming && (
-                            <Badge variant="secondary" className="bg-purple-500/10 text-purple-500 border-none font-bold text-[10px] animate-pulse">
-                                <Zap className="h-3 w-3 mr-1 fill-current" />
+                            <Badge variant="secondary" className="border-none bg-primary/10 text-primary font-bold text-[10px] animate-pulse">
+                                <Zap className="mr-1 h-3 w-3 fill-current" />
                                 {t('log_detail.streaming', 'STREAMING')}
                             </Badge>
                         )}
                         {log.error && (
-                            <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-none font-bold text-[10px]">
-                                <AlertTriangle className="h-3 w-3 mr-1" />
+                            <Badge variant="destructive" className="border-none bg-red-500/10 text-red-500 font-bold text-[10px]">
+                                <AlertTriangle className="mr-1 h-3 w-3" />
                                 {t('common.error', 'ERROR')}
                             </Badge>
                         )}
@@ -278,10 +285,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                         )}
                         {!loading && (
                             <div className="ml-auto mr-10 flex flex-wrap items-center justify-end gap-2">
-                                <div className="hidden items-center gap-2 sm:flex">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
-                                        {t('log_detail.layout_mode', 'Layout')}
-                                    </span>
+                                <div className="hidden items-center sm:flex">
                                     <ViewToggle
                                         value={panelWidthMode}
                                         options={panelWidthOptions}
@@ -291,7 +295,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-7 px-2.5 text-[11px] font-semibold gap-1.5 border-primary/20 bg-primary/5 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all shadow-sm"
+                                    className="h-7 gap-1.5 border-primary/20 bg-primary/5 px-2.5 text-[11px] font-semibold shadow-sm transition-all hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
                                     onClick={async () => {
                                         const navigateToPlayground = (body: string) => {
                                             onClose()
@@ -331,9 +335,9 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                 </SheetHeader>
 
                 {/* 主内容区域 */}
-                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 custom-scrollbar">
+                <div className="custom-scrollbar flex-1 space-y-6 overflow-y-auto bg-muted/30 px-6 py-6">
                     {/* 基本信息网格 */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 bg-muted/30 p-4 rounded-lg border border-border/30">
+                    <div className="grid grid-cols-2 gap-6 rounded-2xl border border-border/60 bg-card p-5 shadow-sm sm:grid-cols-4">
                         {[
                             { label: t('log_table.upstream'), value: log.upstream, mono: false },
                             { label: t('log_table.latency'), value: formatLatency(log.latency_ms), mono: true },
@@ -353,10 +357,10 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                     </div>
 
                     {/* URL 地址 */}
-                    <div className="space-y-3">
+                    <div className={sectionCardClassName}>
                         <SectionHeader title={t('log_detail.url')} section="url" icon={Globe} />
                         {expandedSections.url && (
-                            <div className="flex items-center gap-2 p-3.5 rounded-lg bg-slate-50 dark:bg-background/50 border border-border/40 group hover:border-primary/30 transition-all">
+                            <div className={cn(contentCardClassName, "group flex items-center gap-2 transition-colors hover:border-primary/30")}>
                                 <code className="flex-1 text-xs font-mono break-all leading-relaxed text-foreground">{log.target_url}</code>
                                 <CopyButton text={log.target_url} field="url" />
                             </div>
@@ -365,8 +369,8 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
 
                     {/* 错误详情 */}
                     {log.error && (
-                        <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20 overflow-hidden">
-                            <div className="flex items-center gap-2 text-red-500 font-bold text-xs uppercase tracking-wider mb-3">
+                        <div className="overflow-hidden rounded-2xl border border-red-500/20 bg-red-500/5 p-4 shadow-sm">
+                            <div className="mb-3 flex items-center gap-2 text-red-500 font-bold text-xs uppercase tracking-wider">
                                 <AlertTriangle className="h-4 w-4" />
                                 {t('common.error')}
                             </div>
@@ -375,8 +379,11 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                     )}
 
                     {/* 请求头 & 请求体 */}
-                    <div className="space-y-4">
-                        <div className="space-y-1">
+                    <div className={cn(sectionCardClassName, "space-y-4")}>
+                        <div className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground/70">
+                            {t('log_detail.request')}
+                        </div>
+                        <div className="space-y-2">
                             <SectionHeader
                                 title={t('log_detail.request') + ' ' + t('log_detail.headers')}
                                 section="requestHeaders"
@@ -384,7 +391,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                                 extra={<span className="text-xs font-bold text-muted-foreground/70">{Object.keys(log.request_headers ?? {}).length} KEYS</span>}
                             />
                             {expandedSections.requestHeaders && log.request_headers && (
-                                <div className="p-4 rounded-lg bg-slate-50 dark:bg-background/50 border border-border/40 space-y-2 font-mono text-[11px] leading-relaxed">
+                                <div className={cn(contentCardClassName, "space-y-2 font-mono text-[11px] leading-relaxed")}>
                                     {Object.entries(log.request_headers).map(([key, vv]) => (
                                         <div key={key} className="flex flex-col sm:flex-row sm:gap-2 group/line">
                                             <span className="text-primary/80 shrink-0 font-bold">{key}:</span>
@@ -399,7 +406,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                             )}
                         </div>
 
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                             <SectionHeader
                                 title={t('log_detail.request') + ' ' + t('log_detail.body')}
                                 section="requestBody"
@@ -431,9 +438,9 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                                 }
                             />
                             {expandedSections.requestBody && (
-                                <div className="space-y-2">
+                                <div className="space-y-3">
                                     {log.request_body_ref && (
-                                        <div className="p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/20">
+                                        <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3">
                                             <div className="flex items-center justify-between gap-3">
                                                 <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
                                                     {fullRequestBody ? t('log_detail.blob_loaded') : t('log_detail.blob_detached')}
@@ -454,7 +461,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                                                             size="sm"
                                                             onClick={() => loadBlob('request', log.request_body_ref!)}
                                                             disabled={blobLoading.request}
-                                                            className="h-7 px-2 text-[11px] font-bold border-indigo-500/30 text-indigo-600 hover:bg-indigo-50"
+                                                            className="h-7 border-indigo-500/30 px-2 text-[11px] font-bold text-indigo-600 hover:bg-indigo-500/10 dark:text-indigo-400"
                                                         >
                                                             {blobLoading.request ? t('common.loading') : t('log_detail.load_full')}
                                                         </Button>
@@ -482,26 +489,18 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
 
                                     <div className="relative group">
                                         {effectiveRequestBody ? (
-                                            <>
-                                                {effectiveRequestBody ? (
-                                                    <div className="p-4 rounded-lg bg-slate-50 dark:bg-background/50 border border-border/40 overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar relative group">
-                                                        {requestViewMode === 'raw' ? (
-                                                            <RawBodyViewer text={effectiveRequestBody} />
-                                                        ) : (
-                                                            <JsonViewer data={parsedRequestBody ?? effectiveRequestBody} />
-                                                        )}
-                                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                            <CopyButton text={effectiveRequestBody} field="requestBody" />
-                                                        </div>
-                                                    </div>
+                                            <div className={cn(codeCardClassName, "custom-scrollbar relative max-h-[500px] overflow-x-auto overflow-y-auto p-4")}>
+                                                {requestViewMode === 'raw' ? (
+                                                    <RawBodyViewer text={effectiveRequestBody} />
                                                 ) : (
-                                                    <div className="text-[11px] text-muted-foreground/60 italic p-4 border border-dashed border-border/30 rounded-xl text-center">
-                                                        {loading ? t('common.loading') : t('log_detail.no_body', '--- EMPTY BODY ---')}
-                                                    </div>
+                                                    <JsonViewer data={parsedRequestBody ?? effectiveRequestBody} />
                                                 )}
-                                            </>
+                                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                    <CopyButton text={effectiveRequestBody} field="requestBody" />
+                                                </div>
+                                            </div>
                                         ) : (
-                                            <div className="text-[11px] text-muted-foreground/40 italic p-4 border border-dashed border-border/30 rounded-xl text-center">
+                                            <div className={cn(emptyStateClassName, "text-[11px] italic text-muted-foreground/50")}>
                                                 {loading ? t('common.loading') : t('log_detail.no_body', '--- EMPTY BODY ---')}
                                             </div>
                                         )}
@@ -511,11 +510,12 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                         </div>
                     </div>
 
-                    <Separator className="bg-border/60 my-2" />
-
                     {/* 响应头 & 响应体 */}
-                    <div className="space-y-4">
-                        <div className="space-y-1">
+                    <div className={cn(sectionCardClassName, "space-y-4")}>
+                        <div className="text-[10px] font-black uppercase tracking-[0.24em] text-muted-foreground/70">
+                            {t('log_detail.response')}
+                        </div>
+                        <div className="space-y-2">
                             <SectionHeader
                                 title={t('log_detail.response') + ' ' + t('log_detail.headers')}
                                 section="responseHeaders"
@@ -523,7 +523,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                                 extra={<span className="text-xs font-bold text-muted-foreground/70">{Object.keys(log.response_headers ?? {}).length} KEYS</span>}
                             />
                             {expandedSections.responseHeaders && log.response_headers && (
-                                <div className="p-4 rounded-xl bg-background/50 border border-border/40 space-y-2 font-mono text-[11px] leading-relaxed">
+                                <div className={cn(contentCardClassName, "space-y-2 font-mono text-[11px] leading-relaxed")}>
                                     {Object.entries(log.response_headers).map(([key, vv]) => (
                                         <div key={key} className="flex flex-col sm:flex-row sm:gap-2 group/line">
                                             <span className="text-green-600/80 shrink-0 font-bold">{key}:</span>
@@ -538,7 +538,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                             )}
                         </div>
 
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                             <SectionHeader
                                 title={t('log_detail.response') + ' ' + t('log_detail.body')}
                                 section="responseBody"
@@ -575,11 +575,11 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                                 }
                             />
                             {expandedSections.responseBody && (
-                                <div className="space-y-2">
+                                <div className="space-y-3">
                                     {/* 流式合并说明 */}
                                     {log.streaming && responseViewMode === 'merged' && mergedResponse && (
-                                        <div className="flex items-center gap-2 rounded-lg border border-purple-500/15 bg-purple-500/5 px-3 py-2">
-                                            <Layers className="h-3.5 w-3.5 text-purple-500" />
+                                        <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
+                                            <Layers className="h-3.5 w-3.5 text-primary" />
                                             <span className="text-[10px] font-mono text-muted-foreground/70">
                                                 {t('log_detail.stream_merge_info', { count: mergedResponse.chunks })}
                                                 {' · '}
@@ -591,7 +591,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                                     )}
 
                                     {log.response_body_ref && (
-                                        <div className="p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/20">
+                                        <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3">
                                             <div className="flex items-center justify-between gap-3">
                                                 <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
                                                     {fullResponseBody ? t('log_detail.blob_loaded') : t('log_detail.blob_detached')}
@@ -612,7 +612,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                                                             size="sm"
                                                             onClick={() => loadBlob('response', log.response_body_ref!)}
                                                             disabled={blobLoading.response}
-                                                            className="h-7 px-2 text-[11px] font-bold border-indigo-500/30 text-indigo-600 hover:bg-indigo-50"
+                                                            className="h-7 border-indigo-500/30 px-2 text-[11px] font-bold text-indigo-600 hover:bg-indigo-500/10 dark:text-indigo-400"
                                                         >
                                                             {blobLoading.response ? t('common.loading') : t('log_detail.load_full')}
                                                         </Button>
@@ -640,14 +640,14 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
 
                                     <div className="relative group">
                                         {effectiveResponseBody ? (
-                                            <div className="p-4 rounded-lg bg-slate-50 dark:bg-background/50 border border-border/40 overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar relative group">
+                                            <div className={cn(codeCardClassName, "custom-scrollbar relative max-h-[500px] overflow-x-auto overflow-y-auto p-4")}>
                                                 {responseViewMode === 'raw' ? (
                                                     <RawBodyViewer text={effectiveResponseBody} />
                                                 ) : responseViewMode === 'merged' ? (
                                                     mergedResponse ? (
                                                         <JsonViewer data={mergedResponse.merged} />
                                                     ) : (
-                                                        <div className="text-[11px] text-muted-foreground/70 italic p-4 border border-dashed border-border/30 rounded-xl text-center">
+                                                        <div className={cn(emptyStateClassName, "text-[11px] italic text-muted-foreground/70")}>
                                                             {t('log_detail.stream_merge_unavailable', '当前无法生成合并视图，请切换到 Raw 查看原始内容。')}
                                                         </div>
                                                     )
@@ -666,7 +666,7 @@ export function LogDetail({ log, loading, onClose }: LogDetailProps) {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="text-[11px] text-muted-foreground/60 italic p-4 border border-dashed border-border/30 rounded-xl text-center">
+                                            <div className={cn(emptyStateClassName, "text-[11px] italic text-muted-foreground/60")}>
                                                 {loading ? t('common.loading') : t('log_detail.no_body', '--- EMPTY BODY ---')}
                                             </div>
                                         )}

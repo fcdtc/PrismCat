@@ -173,7 +173,7 @@ function LargeTextPreview({ text }: { text: string }) {
                     {expanded ? t('json_viewer.collapse') : t('json_viewer.expand')}
                 </button>
             </div>
-            <pre className="whitespace-pre-wrap break-all rounded-lg border border-border/40 bg-muted/20 p-3 text-[11px] font-mono">
+            <pre className="whitespace-pre-wrap break-all rounded-xl border border-border/60 bg-background p-3 text-[11px] font-mono shadow-xs">
                 {expanded || text.length <= preview.length ? text : `${preview}\n...`}
             </pre>
         </div>
@@ -425,7 +425,7 @@ function Base64Placeholder({ value, detection, dataUriPrefix }: {
     if (showFull) {
         return (
             <span className="relative group/b64">
-                <span className="text-emerald-600 dark:text-emerald-400 break-all bg-emerald-500/5 p-0.5 rounded">{value}</span>
+                <span className="text-emerald-600 dark:text-emerald-400 break-all rounded-sm bg-emerald-500/10 p-0.5">{value}</span>
                 <Button variant="ghost" size="sm" onClick={() => setShowFull(false)} className="h-6 px-2 text-[10px] font-bold ml-1">
                     {t('json_viewer.collapse')}
                 </Button>
@@ -434,7 +434,7 @@ function Base64Placeholder({ value, detection, dataUriPrefix }: {
     }
 
     return (
-        <span className="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-md bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/25 hover:border-indigo-400 dark:hover:border-indigo-500/50 transition-all my-0.5">
+        <span className="my-0.5 inline-flex items-center gap-1.5 rounded-md border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 transition-colors hover:border-indigo-500/40">
             {detection.isImage
                 ? <ImageIcon className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
                 : <FileCode className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />}
@@ -459,17 +459,17 @@ function Base64Placeholder({ value, detection, dataUriPrefix }: {
 
             {imgSrc && (
                 <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-                    <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-1 overflow-hidden border-none shadow-2xl">
-                        <DialogHeader className="p-4 bg-muted/20 border-b border-border/40">
+                    <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden rounded-2xl border border-border/60 bg-card p-1 shadow-2xl">
+                        <DialogHeader className="border-b border-border/60 bg-muted/30 p-4">
                             <DialogTitle className="text-xs font-bold flex items-center gap-2">
                                 <ImageIcon className="h-3.5 w-3.5" />
                                 {t('json_viewer.image_preview')} · {detection.label} ({formatSize(value.length)})
                             </DialogTitle>
                         </DialogHeader>
-                        <div className="flex-1 overflow-auto p-8 flex items-center justify-center bg-slate-50 dark:bg-card/50">
-                            <img src={imgSrc} alt="Preview" className="max-w-full max-h-full shadow-2xl rounded border border-white/10" />
+                        <div className="flex flex-1 items-center justify-center overflow-auto bg-muted/30 p-8">
+                            <img src={imgSrc} alt="Preview" className="max-h-full max-w-full rounded-xl border border-border/60 bg-background shadow-2xl" />
                         </div>
-                        <div className="p-4 bg-muted/20 border-t border-border/40 flex justify-end gap-2">
+                        <div className="flex justify-end gap-2 border-t border-border/60 bg-muted/30 p-4">
                             <Button variant="outline" size="sm" onClick={copyToClipboard} className="text-[10px] font-bold h-8">
                                 <Copy className="h-3 w-3 mr-2" />
                                 {t('json_viewer.copy')}
