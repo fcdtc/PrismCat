@@ -6,7 +6,7 @@
  */
 
 type StreamFormat = 'sse' | 'ndjson' | 'unknown'
-type StreamProtocol = 'openai-chat' | 'openai-responses' | 'claude-messages' | 'ollama' | 'generic'
+type StreamProtocol = 'openai-chat' | 'openai-responses' | 'claude-messages' | 'ollama' | 'gemini' | 'generic'
 
 export interface MergeResult {
     merged: unknown
@@ -37,6 +37,12 @@ interface OpenAIChoiceAccumulator {
     images: unknown[]
     toolCalls: Array<ToolCallAccumulator | undefined>
     finishReason: string | null
+}
+
+interface GeminiCandidateAccumulator {
+    candidate: Record<string, unknown>
+    content: Record<string, unknown>
+    parts: Array<Record<string, unknown>>
 }
 
 const CLAUDE_EVENT_NAMES = new Set([
@@ -175,6 +181,13 @@ function mergeSseEvents(events: SseEvent[]): MergeResult {
                 format: 'sse',
                 protocol,
             }
+        case 'gemini':
+            return {
+                merged: mergeGeminiChunks(events.map(({ data }) => data)),
+                chunks: events.length,
+                format: 'sse',
+                protocol,
+            }
         default:
             return {
                 merged: events.map(toGenericSseEntry),
@@ -217,6 +230,13 @@ function mergeNdjsonChunks(chunks: Record<string, unknown>[]): MergeResult {
                 format: 'ndjson',
                 protocol,
             }
+        case 'gemini':
+            return {
+                merged: mergeGeminiChunks(chunks),
+                chunks: chunks.length,
+                format: 'ndjson',
+                protocol,
+            }
         default:
             return {
                 merged: chunks,
@@ -236,6 +256,7 @@ function detectSseProtocol(events: SseEvent[]): StreamProtocol {
     const chunks = events.map(({ data }) => data)
     if (isOpenAIChatChunks(chunks)) return 'openai-chat'
     if (isOllamaChunks(chunks)) return 'ollama'
+    if (isGeminiChunks(chunks)) return 'gemini'
     return 'generic'
 }
 
@@ -244,6 +265,7 @@ function detectNdjsonProtocol(chunks: Record<string, unknown>[]): StreamProtocol
     if (chunks.some((chunk) => isOpenAIResponsesType(asString(chunk.type)))) return 'openai-responses'
     if (isOpenAIChatChunks(chunks)) return 'openai-chat'
     if (isOllamaChunks(chunks)) return 'ollama'
+    if (isGeminiChunks(chunks)) return 'gemini'
     return 'generic'
 }
 
@@ -273,6 +295,29 @@ function isOllamaChunks(chunks: Record<string, unknown>[]): boolean {
     return chunks.some((chunk) => {
         const message = getRecord(chunk, 'message')
         return Boolean(message && 'content' in message && 'done' in chunk)
+    })
+}
+
+function isGeminiChunks(chunks: Record<string, unknown>[]): boolean {
+    return chunks.some((chunk) => {
+        const candidates = getArray(chunk, 'candidates')
+        if (!candidates || candidates.length === 0) return false
+
+        const firstCandidate = candidates.find(isRecord)
+        if (!firstCandidate) {
+            return Boolean(chunk.usageMetadata || chunk.responseId || chunk.modelVersion)
+        }
+
+        const content = getRecord(firstCandidate, 'content')
+        const parts = content ? getArray(content, 'parts') : undefined
+
+        return Boolean(
+            parts ||
+            firstCandidate.finishReason !== undefined ||
+            chunk.usageMetadata ||
+            chunk.responseId ||
+            chunk.modelVersion
+        )
     })
 }
 
@@ -611,6 +656,100 @@ function mergeOllamaChunks(chunks: Record<string, unknown>[]): Record<string, un
             role: role || 'assistant',
             content,
         },
+    }
+}
+
+function mergeGeminiChunks(chunks: Record<string, unknown>[]): Record<string, unknown> {
+    const result: Record<string, unknown> = {}
+    const candidateMap = new Map<number, GeminiCandidateAccumulator>()
+
+    for (const chunk of chunks) {
+        mergeGeminiEnvelope(result, chunk)
+
+        const candidates = getArray(chunk, 'candidates')
+        if (!candidates) continue
+
+        for (const candidateValue of candidates) {
+            if (!isRecord(candidateValue)) continue
+
+            const index = asNumber(candidateValue.index) ?? 0
+            if (!candidateMap.has(index)) {
+                candidateMap.set(index, {
+                    candidate: {},
+                    content: {},
+                    parts: [],
+                })
+            }
+
+            const acc = candidateMap.get(index)
+            if (!acc) continue
+
+            mergeTopLevelFields(acc.candidate, candidateValue, ['content'])
+
+            const content = getRecord(candidateValue, 'content')
+            if (!content) continue
+
+            mergeTopLevelFields(acc.content, content, ['parts'])
+            appendGeminiParts(acc.parts, getArray(content, 'parts'))
+        }
+    }
+
+    const mergedCandidates = [...candidateMap.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([index, acc]) => {
+            const candidate: Record<string, unknown> = { ...acc.candidate, index }
+            if (Object.keys(acc.content).length > 0 || acc.parts.length > 0) {
+                candidate.content = {
+                    ...acc.content,
+                    parts: acc.parts.map((part) => ({ ...part })),
+                }
+            }
+            return candidate
+        })
+
+    if (mergedCandidates.length > 0) {
+        result.candidates = mergedCandidates
+    }
+
+    return result
+}
+
+function mergeGeminiEnvelope(target: Record<string, unknown>, chunk: Record<string, unknown>): void {
+    for (const [key, value] of Object.entries(chunk)) {
+        if (value === undefined || key === 'candidates') continue
+        if (key === 'usageMetadata' && isRecord(value)) {
+            const merged = isRecord(target.usageMetadata) ? { ...target.usageMetadata } : {}
+            Object.assign(merged, value)
+            target.usageMetadata = merged
+            continue
+        }
+        target[key] = value
+    }
+}
+
+function appendGeminiParts(target: Array<Record<string, unknown>>, parts: unknown[] | undefined): void {
+    if (!parts) return
+
+    for (const partValue of parts) {
+        if (!isRecord(partValue)) continue
+
+        const text = asString(partValue.text)
+        if (text === undefined) {
+            target.push({ ...partValue })
+            continue
+        }
+
+        const lastPart = target[target.length - 1]
+        if (lastPart && asString(lastPart.text) !== undefined) {
+            lastPart.text = `${asString(lastPart.text) ?? ''}${text}`
+            for (const [key, value] of Object.entries(partValue)) {
+                if (key === 'text' || value === undefined) continue
+                lastPart[key] = value
+            }
+            continue
+        }
+
+        target.push({ ...partValue })
     }
 }
 
