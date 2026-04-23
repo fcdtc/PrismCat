@@ -2,9 +2,12 @@ package storage
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/paopaoandlingyia/PrismCat/internal/config"
 )
 
 type memRepo struct {
@@ -36,7 +39,7 @@ func (m *memRepo) Close() error                                     { m.mu.Lock(
 
 func TestAsyncRepositoryCloseDrainsQueue(t *testing.T) {
 	inner := &memRepo{}
-	a := NewAsyncRepository(inner, 64)
+	a := NewAsyncRepository(inner, nil, 64)
 
 	const n = 10
 	for i := 0; i < n; i++ {
@@ -60,7 +63,7 @@ func TestAsyncRepositoryCloseDrainsQueue(t *testing.T) {
 
 func TestAsyncRepositoryCloseConcurrentSaveDoesNotPanic(t *testing.T) {
 	inner := &memRepo{}
-	a := NewAsyncRepository(inner, 1024)
+	a := NewAsyncRepository(inner, nil, 1024)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 8; i++ {
@@ -82,4 +85,39 @@ func TestAsyncRepositoryCloseConcurrentSaveDoesNotPanic(t *testing.T) {
 		t.Fatalf("Close failed: %v", err)
 	}
 	wg.Wait()
+}
+
+func TestAsyncRepositoryPreparesBodiesInWorker(t *testing.T) {
+	inner := &memRepo{}
+	cfg := &config.Config{}
+	cfg.Logging.MaxRequestBody = 1024
+	cfg.Logging.MaxResponseBody = 1024
+	cfg.Logging.StoreBase64 = true
+
+	a := NewAsyncRepository(inner, cfg, 16)
+
+	err := a.SaveLog(&RequestLog{
+		ID:             "id",
+		RequestHeaders: map[string][]string{"Content-Type": {"application/json"}},
+		RequestBodyRaw: []byte(`{"hello":"world"}`),
+	})
+	if err != nil {
+		t.Fatalf("SaveLog failed: %v", err)
+	}
+	if err := a.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+
+	inner.mu.Lock()
+	defer inner.mu.Unlock()
+	if len(inner.logs) != 1 {
+		t.Fatalf("inner logs = %d, want 1", len(inner.logs))
+	}
+	saved := inner.logs[0]
+	if !strings.Contains(saved.RequestBody, `"hello":"world"`) {
+		t.Fatalf("RequestBody = %q, want formatted JSON content", saved.RequestBody)
+	}
+	if saved.RequestBodyRaw != nil {
+		t.Fatalf("RequestBodyRaw not cleared")
+	}
 }
